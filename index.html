@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shinhan Characters Runner – Intro</title>
+  <style>
+    :root { --bg-app:#fafafa; --fg:#222; --line:#cfcfcf; }
+    body { margin:0; color:var(--fg); background:var(--bg-app);
+      font:500 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans KR',sans-serif;
+      display:grid; place-items:center; min-height:100vh; }
+    .wrap { width:min(980px,94vw); padding:18px 12px 28px; }
+    .title { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    h1 { margin:0; font-size:18px; }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button{ appearance:none; border:1px solid var(--line); background:#fff; color:var(--fg);
+      padding:6px 10px; border-radius:999px; cursor:pointer; font-weight:600; }
+    .hud{ display:flex; gap:12px; justify-content:flex-end; margin:10px 0; }
+    .pill{ border:1px solid var(--line); border-radius:999px; padding:4px 10px;
+      min-width:100px; text-align:center; background:#fff; }
+
+    /* Stage 15/5 (3:1) */
+    .stage{
+      position:relative; overflow:hidden; border:1px solid var(--line); border-radius:14px;
+      width:100%; aspect-ratio:15/5; max-height:600px;
+      user-select:none; -webkit-user-select:none; touch-action:manipulation;
+      background:#fff;
+    }
+
+    /* Background: seasons, faint + soft */
+    .season {
+      position:absolute; inset:0; background-size:cover; background-position:center;
+      z-index:0;
+      opacity:0; /* default hidden, fade when .show */
+      filter: blur(1.2px) saturate(0.9) contrast(0.88) brightness(1.02);
+      transition: opacity 1.2s ease;
+      pointer-events:none;
+    }
+    .season.show { opacity:0.22; } /* soft background */
+
+    /* Foreground layers (crisp) */
+    .cloud  { position:absolute; z-index:5; pointer-events:none; }
+    .ground { position:absolute; left:0; right:0; bottom:40px; height:2px; background:#222; opacity:.25; z-index:6; }
+    .ob     { position:absolute; background-repeat:no-repeat; background-position:center; background-size:contain; z-index:15; }
+    .dino   { position:absolute; left:52px; bottom:42px; width:128px; height:128px;
+              background-image:url('sprites/bear-sprite-3f.png'); background-repeat:no-repeat;
+              background-size: 384px 128px; transform-origin: bottom left; transform: scale(0.8);
+              will-change: transform, background-position; z-index:20; }
+    .dino.ducking{ transform: scale(0.8) translateY(-10px) scaleY(0.78) scaleX(1.02); }
+    .dino.air{ transform: scale(0.8); }
+
+    /* Obstacles (sizes already reduced by 10px all around in prior iteration) */
+    .cactus-bear   { width:50px;  height:64px;  bottom:40px; background-image:url('sprites/cactus-bear.png'); }
+    .cactus-lion   { width:58px;  height:76px;  bottom:40px; background-image:url('sprites/cactus-lion.png'); }
+    .cactus-fox    { width:42px;  height:50px;  bottom:40px; background-image:url('sprites/cactus-fox.png'); }
+    .cactus-cat    { width:50px;  height:62px;  bottom:40px; background-image:url('sprites/cactus-cat.png'); }
+    .bird-penguin  { width:76px;  height:46px;  background-image:url('sprites/bird-penguin.png'); }
+    .bird-dj-penguin{ width:76px; height:46px; background-image:url('sprites/bird-dj-penguin.png'); }
+
+    /* Clouds (crisp) */
+    .cloud1 { width:120px; height:70px; background:url('sprites/cloud1.png') no-repeat center/contain; }
+    .cloud2 { width:140px; height:78px; background:url('sprites/cloud2.png') no-repeat center/contain; }
+    .cloud3 { width:130px; height:76px; background:url('sprites/cloud3.png') no-repeat center/contain; }
+
+    .overlay{ position:absolute; inset:0; display:none; place-items:center; background:rgba(0,0,0,.06); z-index:30; }
+    .overlay.show{ display:grid; }
+    .card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px;
+      text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.12); }
+
+    /* Intro overlay (top-most) */
+    .intro{
+      position:absolute; inset:0; z-index:40;
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.86));
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:18px;
+    }
+    .intro-img{
+      max-width:82%; height:auto; object-fit:contain;
+      filter: drop-shadow(0 6px 20px rgba(0,0,0,.08));
+    }
+    .intro-text{
+      font-size:22px; font-weight:800; letter-spacing:.3px; color:#333;
+      text-shadow: 0 1px 0 rgba(255,255,255,.6);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform: translateY(0); }
+      50% { opacity:.45; transform: translateY(-2px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">
+      <h1>🦖 Shinhan Characters Runner</h1>
+      <div class="controls">
+        <button id="btn-start">Start</button>
+        <button id="btn-pause">Pause</button>
+        <button id="btn-restart">Restart</button>
+        <button id="btn-theme">Day/Night</button>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="pill" id="score">Score: 00000</div>
+      <div class="pill" id="best">Best: 00000</div>
+      <div class="pill" id="speed">Speed: 1.00x</div>
+    </div>
+
+    <div class="stage" id="stage" aria-label="game stage">
+      <!-- Seasonal background (faint) -->
+      <div class="season" id="seasonA"></div>
+      <div class="season" id="seasonB"></div>
+
+      <!-- Ground & Hero -->
+      <div class="ground"></div>
+      <div class="dino" id="dino" aria-label="hero"></div>
+
+      <!-- Intro overlay -->
+      <div class="intro" id="intro">
+        <img class="intro-img" src="sprites/character_friends.png" alt="friends" />
+        <div class="intro-text">Press the Space Bar to Start</div>
+      </div>
+
+      <!-- Game Over overlay -->
+      <div class="overlay" id="overlay">
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:6px;">Game Over</div>
+          <div style="opacity:.75">Press <b>R</b> or click Restart</div>
+          <div style="margin-top:10px;"><button id="ovr-restart">Restart</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; opacity:.7; margin-top:8px;">
+      Space/↑: Jump • ↓: Duck • P: Pause • R: Restart • T: Theme
+    </div>
+  </div>
+
+  <script>
+  ;(() => {
+    const stage = document.getElementById('stage');
+    const dinoEl = document.getElementById('dino');
+    const overlay = document.getElementById('overlay');
+    const intro = document.getElementById('intro');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const speedEl = document.getElementById('speed');
+    const btnStart = document.getElementById('btn-start');
+    const btnPause = document.getElementById('btn-pause');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnTheme = document.getElementById('btn-theme');
+    const ovrRestart = document.getElementById('ovr-restart');
+
+    // Seasons
+    const SEASONS = ['sprites/bg_spring.jpg','sprites/bg_summer.jpg','sprites/bg_autumn.jpg','sprites/bg_winter.jpg'];
+    const seasonEls = [document.getElementById('seasonA'), document.getElementById('seasonB')];
+    let seasonIndex=0, seasonFront=0, seasonTimer=0;
+    const SEASON_INTERVAL_MS = 7000; // 7초로 단축
+    function setSeason(idx){
+      const back = 1 - seasonFront;
+      const front = seasonFront;
+      seasonEls[back].style.backgroundImage = `url('${SEASONS[idx]}')`;
+      requestAnimationFrame(() => {
+        seasonEls[back].classList.add('show');     // fade in
+        seasonEls[front].classList.remove('show'); // fade out
+        seasonFront = back;
+      });
+    }
+
+    // Easier gameplay profile
+    const SPEED_START = 4, SPEED_STEP = 0.20, STEP_EVERY = 900, MAX_SPEED = 11.5;
+    const GRAVITY = 0.64, JUMP_VY = 13.0;
+    const SPRITE = { frameW:128, frameH:128, cols:3, run:2, duck:1, fps:10 };
+
+    // Forgiving collisions
+    const HERO_BOX = { normal:{w:104*0.40, h:104*0.50, ox:12, oy:10},
+                       duck:{w:104*0.42, h:104*0.38, ox:12, oy:8} };
+    const OB_SHRINK = 0.55;
+    const MIN_OVERLAP = 6;
+
+    const state = { running:false, paused:false, over:false, speed:SPEED_START, tick:0,
+                    distance:0, nextStepAt:STEP_EVERY, score:0, best:Number(localStorage.getItem('cc_best')||0),
+                    last:0, night:false };
+
+    const dino = { x:52, y:42, w:128, h:128, vy:0, jumping:false, ducking:false, frame:0, timer:0, bob:0 };
+
+    const groundClasses = ['cactus-bear','cactus-lion','cactus-fox','cactus-cat'];
+    const birdClasses   = ['bird-penguin','bird-dj-penguin'];
+    const cloudClasses  = ['cloud1','cloud2','cloud3'];
+
+    const objects = [];
+    let spawnGap = 0;
+
+    const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+    const rnd=(a,b)=>a+Math.random()*(b-a);
+
+    function clearDOM(){ stage.querySelectorAll('.ob, .cloud').forEach(n => n.remove()); }
+
+    function renderHUD(){ scoreEl.textContent='Score: '+String(state.score).padStart(5,'0');
+      bestEl.textContent='Best: '+String(state.best).padStart(5,'0');
+      speedEl.textContent='Speed: '+(state.speed/SPEED_START).toFixed(2)+'x'; }
+
+    function reset(){
+      state.running=false; state.over=false; state.paused=false;
+      state.speed=SPEED_START; state.tick=0; state.distance=0; state.nextStepAt=STEP_EVERY; state.score=0; spawnGap=0;
+      objects.length=0; clearDOM();
+      dino.y=42; dino.vy=0; dino.jumping=false; dino.ducking=false; dino.frame=0; dino.timer=0; dino.bob=0;
+      dinoEl.classList.remove('ducking','air'); overlay.classList.remove('show');
+      dinoEl.style.backgroundSize = (SPRITE.frameW*SPRITE.cols)+'px '+SPRITE.frameH+'px';
+      paintDino(); renderHUD();
+      // seasons init
+      seasonIndex=0; seasonFront=0; seasonTimer=0;
+      seasonEls[0].style.backgroundImage = `url('${SEASONS[0]}')`;
+      seasonEls[0].classList.add('show'); seasonEls[1].classList.remove('show');
+      // show intro
+      intro.style.display = 'flex';
+    }
+
+    function start(){
+      if(state.running) return;
+      intro.style.display = 'none';
+      state.running=true; state.last=performance.now();
+      requestAnimationFrame(loop);
+    }
+    function pause(){ state.paused=!state.paused; }
+    function gameOver(){
+      state.over=true; overlay.classList.add('show'); state.running=false;
+      if(state.score>state.best){ state.best=state.score; localStorage.setItem('cc_best', state.best); }
+      renderHUD();
+    }
+
+    function sizeOf(el){ const cs=getComputedStyle(el); return { w: parseFloat(cs.width), h: parseFloat(cs.height) }; }
+
+    function spawnCloud(){
+      const cls=cloudClasses[Math.floor(Math.random()*cloudClasses.length)];
+      const el=document.createElement('div'); el.className='cloud '+cls; stage.appendChild(el);
+      const {w,h}=sizeOf(el); const y=rnd(150,260);
+      objects.push({type:'cloud', el, x:stage.clientWidth+20, y, w, h, vx:state.speed*.24});
+    }
+    function spawnObstacle(){
+      const r=Math.random();
+      const allowBirds = state.score >= 500;
+      if(r<.68){
+        const cls=groundClasses[Math.floor(Math.random()*groundClasses.length)];
+        const el=document.createElement('div'); el.className='ob '+cls; stage.appendChild(el);
+        const {w,h}=sizeOf(el); objects.push({type:'ground', el, x:stage.clientWidth+20, y:40, w, h, vx:state.speed});
+      } else if(allowBirds){
+        const cls=birdClasses[Math.floor(Math.random()*birdClasses.length)];
+        const el=document.createElement('div'); el.className='ob '+cls; stage.appendChild(el);
+        const lvl=[135,165][Math.floor(Math.random()*2)];
+        const {w,h}=sizeOf(el); objects.push({type:'bird', el, x:stage.clientWidth+20, y:lvl, w, h, vx:state.speed+0.3});
+      } else {
+        spawnCloud();
+      }
+    }
+
+    function computeNextGap(speed){
+      const minGap = 150 + speed*26;
+      const maxGap = minGap + (speed<9 ? 300 : 260);
+      return rnd(minGap, maxGap);
+    }
+
+    function loop(now){
+      if(!state.running) return;
+      const dt = Math.min(32, now - state.last); state.last = now;
+      if(state.paused){ requestAnimationFrame(loop); return; }
+
+      // distance & step speed
+      state.distance += state.speed;
+      if(state.distance >= state.nextStepAt){
+        state.speed = Math.min(MAX_SPEED, state.speed + SPEED_STEP);
+        state.nextStepAt += STEP_EVERY;
+      }
+
+      // seasons update
+      seasonTimer += dt;
+      if(seasonTimer >= SEASON_INTERVAL_MS){ seasonTimer=0; seasonIndex=(seasonIndex+1)%SEASONS.length; setSeason(seasonIndex); }
+
+      // physics
+      dino.vy -= GRAVITY;
+      dino.y = Math.max(42, Math.min(380, dino.y + dino.vy));
+      if(dino.y<=42){ dino.y=42; dino.vy=0; dino.jumping=false; }
+      dinoEl.classList.toggle('air', dino.jumping);
+
+      if(!dino.jumping && !dino.ducking){ dino.bob += dt*0.013; const bobY = Math.sin(dino.bob)*1.0; dinoEl.style.transform = `scale(0.8) translateY(${bobY}px)`; }
+      else if(!dino.ducking){ dinoEl.style.transform = 'scale(0.8)'; }
+
+      // frames
+      const RUN_END = SPRITE.run-1, DUCK_I=SPRITE.run;
+      if(dino.jumping){ dino.frame = 0; } else if(dino.ducking){ dino.frame = DUCK_I; }
+      else { dino.timer += dt; const iv = 1000/SPRITE.fps; if(dino.timer>=iv){ dino.timer-=iv; dino.frame=(dino.frame+1)%(RUN_END+1); } }
+      paintDino();
+
+      // spawns
+      spawnGap -= state.speed;
+      if(spawnGap <= 0){ spawnObstacle(); spawnGap = computeNextGap(state.speed); }
+
+      // move & cleanup
+      for(let i=objects.length-1;i>=0;i--){
+        const o=objects[i]; o.x -= o.vx;
+        if(o.x + o.w < -20){ o.el.remove(); objects.splice(i,1); }
+      }
+
+      // collisions
+      const hb = dino.ducking ? HERO_BOX.duck : HERO_BOX.normal;
+      const hero = { x:dino.x + hb.ox, y:dino.y + hb.oy, w:hb.w, h:hb.h };
+      let hurt=false;
+      for(const o of objects){
+        if(o.type==='cloud') continue;
+        const ob = { x:o.x + (o.w*(1-OB_SHRINK))/2, y:o.y + (o.h*(1-OB_SHRINK))/2,
+                     w:o.w*OB_SHRINK, h:o.h*OB_SHRINK };
+        const ix = Math.max(0, Math.min(hero.x+hero.w, ob.x+ob.w) - Math.max(hero.x, ob.x));
+        const iy = Math.max(0, Math.min(hero.y+hero.h, ob.y+ob.h) - Math.max(hero.y, ob.y));
+        if(ix > 6 && iy > 6){ hurt=true; break; }
+      }
+      if(hurt){ gameOver(); return; }
+
+      if(state.tick%5===0){ state.score++; }
+      renderHUD();
+      syncObjects();
+      state.tick++; requestAnimationFrame(loop);
+    }
+
+    function paintDino(){
+      const x = -Math.round(dino.frame*SPRITE.frameW);
+      dinoEl.style.backgroundPosition = x+'px 0px';
+      dinoEl.style.left = dino.x+'px';
+      dinoEl.style.bottom = dino.y+'px';
+      dinoEl.classList.toggle('ducking', dino.ducking && !dino.jumping);
+    }
+    function syncObjects(){ for(const o of objects){ o.el.style.left=o.x+'px'; o.el.style.bottom=o.y+'px'; } }
+
+    function jump(){ if(state.over) return; if(!state.running){ start(); return; } if(dino.jumping) return; dino.vy=JUMP_VY; dino.jumping=true; }
+    function duck(on){ if(state.over) return; dino.ducking=!!on; }
+
+    // Input
+    window.addEventListener('keydown',e=>{
+      if(e.code==='Space'){ e.preventDefault(); if(intro.style.display!=='none'){ start(); } else { jump(); } }
+      if(e.code==='ArrowUp'){ e.preventDefault(); if(intro.style.display!=='none'){ start(); } else { jump(); } }
+      if(e.code==='ArrowDown'){ e.preventDefault(); duck(true); }
+      if(e.code==='KeyP'){ pause(); }
+      if(e.code==='KeyR'){ reset(); start(); }
+      if(e.code==='KeyT'){ document.body.style.background = (document.body.style.background==='#1a1a1a') ? '#fafafa' : '#1a1a1a'; }
+    });
+    window.addEventListener('keyup',e=>{ if(e.code==='ArrowDown'){ e.preventDefault(); duck(false); }});
+    stage.addEventListener('pointerdown', () => { if(intro.style.display!=='none'){ start(); } else { jump(); } });
+
+    btnStart.onclick=()=>{ if(intro.style.display!=='none'){ start(); } };
+    btnPause.onclick=()=>{ pause(); };
+    btnRestart.onclick=()=>{ reset(); };
+    btnTheme.onclick=()=>{ document.body.style.background = (document.body.style.background==='#1a1a1a') ? '#fafafa' : '#1a1a1a'; };
+    ovrRestart.onclick=()=>{ reset(); start(); };
+
+    function paintClouds(){ /* placeholder if needed */ }
+
+    reset();
+  })();
+  </script>
+
+  <!-- /sprites folder should contain:
+       bear-sprite-3f.png
+       cloud1.png cloud2.png cloud3.png
+       cactus-bear.png cactus-lion.png cactus-fox.png cactus-cat.png
+       bird-penguin.png bird-dj-penguin.png
+       bg_spring.jpg bg_summer.jpg bg_autumn.jpg bg_winter.jpg
+       character_friends.png  (intro image)
+  -->
+</body>
+</html>
